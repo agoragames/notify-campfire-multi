@@ -1,0 +1,52 @@
+We set up our campfire so each project has a specific room. We set up our 
+redmine projects so they're tied to our svn repository. This allows us to grab
+changesets and to close issues from commit messages. It also gives us pretty 
+diffs.
+
+What notify-campfire-multi.rb does is allow us to post a notice that a commit 
+has happened (and by who) and then gives us a link to our redmine diff or it 
+can just paste the diff into campfire (which was cool but takes up quite a bit
+of space if you have a lot of commits).
+
+To use, put it in your hooks directory (ours is /var/svn/agora/hooks). Set up 
+your post commit hook and then put this on the last line:
+
+/var/svn/agora/hooks/notify-campfire-multi.rb $1 $2
+
+You need to make sure post-commit and notify-campfire-multi.rb are both 
+chmod +x and have permissions to run in the hooks directory
+
+The way this works is for each room you have a block like:
+
+bacalhau_room   = campfire.rooms.detect { |r| '288431' == r.id }
+if dirs_changed =~ /bacalhau/
+  last_changed_author = `svnlook info -r#{revision} #{repository_path}`.split("\n").first
+  diff = `svnlook diff -r#{revision} #{repository_path}`
+  log_message = `svnlook propget #{repository_path} svn:log -r#{revision} --revprop`
+  log_message = wrap_text("#{last_changed_author} committed revision #{revision} with log message: #{log_message}")
+  bacalhau_room.paste("#{'-' * 80}\n#{log_message}\n#{'-' * 80}\n" + diff)
+end
+
+The first line there finds the room we're going to speak to. Next it determines
+if this commit is happening against a directory within the correct project. The
+rest of it is just figuring out who made the change, what did they change and 
+what was their log message. The last line pastes both the commit message and 
+the diff to the campfire room.
+
+Alternatively you can use this form:
+
+gh_regular_expression = /guitarhero/
+if dirs_changed =~ gh_regular_expression
+  last_changed_author = `svnlook info -r#{revision} #{repository_path}`.split("\n").first
+  log_message = `svnlook propget  svn:log -r#{revision} --revprop`
+  log_message = wrap_text("#{last_changed_author} committed revision #{revision} with log message: #{log_message}")
+  guitarhero_room.paste(log_message)
+  # post the link to our redmine
+  guitarhero_room.speak("http://agora.redmine.made.up.crap.com/repositories/diff/guitarhero?rev=#{revision}")
+end
+
+Which does almost exactly the same thing but it speaks a link to the diff 
+instead of pasting the entire diff into the room.
+
+This requires tinder to work:
+sudo gem install tinder
